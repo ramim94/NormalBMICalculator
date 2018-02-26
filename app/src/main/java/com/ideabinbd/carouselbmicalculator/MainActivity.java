@@ -1,23 +1,31 @@
 package com.ideabinbd.carouselbmicalculator;
 
 import android.app.Dialog;
+import android.os.Looper;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.telecom.Call;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import com.ideabinbd.APIInterface;
 import com.ideabinbd.carouselbmicalculator.adapter.BMIDataRecyclerAdapter;
+
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import io.realm.OrderedRealmCollection;
 import io.realm.Realm;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class MainActivity extends AppCompatActivity {
     FloatingActionButton fab;
@@ -25,6 +33,10 @@ public class MainActivity extends AppCompatActivity {
     Realm realm;
     RecyclerView allDataRecycler;
     BMIDataRecyclerAdapter bmiDataRecyclerAdapter;
+
+    List<BmiData> bmiDataList;
+    APIInterface networkInterface;
+    private boolean testingOnline=true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,8 +74,47 @@ public class MainActivity extends AppCompatActivity {
                         final double inpWeight, inpHeight;
                         inpWeight= Double.parseDouble(edtWeight.getText().toString());
                         inpHeight= Double.parseDouble(edtHeight.getText().toString()) * 0.3048;
+                        if(testingOnline){
+                            //online Codes
+                            double bmi = ((inpWeight)/(inpHeight* inpHeight));
+                            BmiData newData= new BmiData();
+                            newData.setId(5);
+                            newData.setHeight(inpHeight);
+                            newData.setWeight(inpWeight);
+                            newData.setBmi(bmi);
+                            newData.setTimeDate(String.valueOf(System.currentTimeMillis()));
+                            retrofit2.Call<String> uploadData= networkInterface.uploadBMIData(newData);
 
-                        realm.executeTransaction(new Realm.Transaction() {
+                            uploadData.enqueue(new Callback<String>() {
+                                @Override
+                                public void onResponse(retrofit2.Call<String> call, Response<String> response) {
+                                    Log.d("retroResp",response.body().toString());
+                                }
+
+                                @Override
+                                public void onFailure(retrofit2.Call<String> call, Throwable t) {
+                                    Log.d("retroResp",t.toString());
+                                }
+                            });
+
+
+                            /*
+                            retrofit2.Call<JSONObject> uploadData= networkInterface.uploadBMIData(newData);
+
+                            uploadData.enqueue(new Callback<JSONObject>() {
+                                @Override
+                                public void onResponse(retrofit2.Call<JSONObject> call, Response<JSONObject> response) {
+                                    Log.d("retroResp",response.body().toString());
+                                }
+
+                                @Override
+                                public void onFailure(retrofit2.Call<JSONObject> call, Throwable t) {
+                                    Log.d("retroResp",t.toString());
+                                }
+                            });
+                            */
+                        }else{
+                          realm.executeTransaction(new Realm.Transaction() {
                             @Override
                             public void execute(Realm realm) {
 
@@ -88,6 +139,8 @@ public class MainActivity extends AppCompatActivity {
 
                         bmiDataRecyclerAdapter.notifyDataSetChanged();
                         Toast.makeText(MainActivity.this, inpWeight+" nd " + inpHeight, Toast.LENGTH_SHORT).show();
+
+                        }
                         customDialog.dismiss();
                     }
                 });
@@ -101,6 +154,31 @@ public class MainActivity extends AppCompatActivity {
                 });
             customDialog.show();
 
+            }
+        });
+
+
+        networkInterface= ApiClient.getApiClient().create(APIInterface.class);
+
+        retrofit2.Call<List<BmiData>> fetchedData= networkInterface.getBmiData();
+
+        fetchedData.enqueue(new Callback<List<BmiData>>() {
+            @Override
+            public void onResponse(retrofit2.Call<List<BmiData>> call, Response<List<BmiData>> response) {
+                if(response.isSuccessful()){
+                   bmiDataList= response.body();
+                   for (BmiData d: bmiDataList){
+                       Log.d("retroResponse",String.valueOf(d.getBmi()));
+                       Log.d("retroResponse",String.valueOf(d.getHeight()));
+                       Log.d("retroResponse",String.valueOf(d.getWeight()));
+                       Log.d("retroResponse",String.valueOf(d.getTimeDate()));
+                   }
+                }
+            }
+
+            @Override
+            public void onFailure(retrofit2.Call<List<BmiData>> call, Throwable t) {
+                Log.d("retroResponse",t.toString());
             }
         });
     }
